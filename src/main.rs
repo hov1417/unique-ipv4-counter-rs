@@ -6,7 +6,6 @@ use std::io;
 use std::mem::transmute;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::thread;
-use thread_priority::ThreadPriority;
 
 /// A set to keep track of unique IPs using a bitmask.
 struct MaxBitSet {
@@ -24,37 +23,14 @@ impl MaxBitSet {
     // // #[inline(never)]
     /// Sets the bit at the specified index.
     fn set(&self, bit_index: u32) {
-        // self.words[bit_index.wrapping_shr(6) as usize].fetch_or(mask, Ordering::SeqCst);
-        let word = self.get_atomic(bit_index);
-        self.set_bit(word, bit_index);
-    }
-
-    // #[inline(never)]
-    fn set_bit(&self, word: &AtomicU64, bit_index: u32) {
-        let mask = 1u64.wrapping_shl(bit_index);
-        loop {
-            let cur = word.load(Ordering::Relaxed);
-            let new = cur | mask;
-            if new == cur
-                || word
-                .compare_exchange_weak(cur, new, Ordering::Relaxed, Ordering::Relaxed)
-                .is_ok()
-            {
-                return;
-            }
-        }
-        // let mask = 1u64.wrapping_shl(bit_index);
-        // AtomicU64::fetch_or(word, mask, Ordering::SeqCst)
-    }
-
-    // #[inline(never)]
-    fn get_atomic(&self, bit_index: u32) -> &AtomicU64 {
-        unsafe {
+        let word = unsafe {
             &*self
                 .words
                 .as_ptr()
                 .offset(bit_index.wrapping_shr(6) as isize)
-        }
+        };
+        let mask = 1u64.wrapping_shl(bit_index);
+        AtomicU64::fetch_or(word, mask, Ordering::SeqCst);
     }
 
     // #[inline(never)]
@@ -195,7 +171,7 @@ fn thread(
     file_size: usize,
 ) -> impl FnOnce() {
     move || {
-        thread_priority::set_current_thread_priority(ThreadPriority::Max).unwrap();
+        thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
         worker(map, chunk_id, bitset, file_size);
     }
 }

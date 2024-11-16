@@ -14,7 +14,7 @@ rand = "0.8.5"
 [profile.release]
 panic = "abort"
 overflow-checks = false
-opt-level = "z"
+opt-level = 3
 debug = "full"
-lto = "fat"
+lto = true
 codegen-units = 1
