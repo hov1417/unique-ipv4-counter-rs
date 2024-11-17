@@ -10,7 +10,7 @@ use crate::generated_hash::{PATTERNS, PATTERNS_ID};
 use std::fs::File;
 use std::mem::transmute;
 use std::simd::cmp::SimdPartialEq;
-use std::simd::{Simd, ToBytes};
+use std::simd::Simd;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::thread;
 use std::{io, simd};
@@ -75,7 +75,7 @@ fn num(mut value: u128, new_line: u32) -> u32 {
 }
 
 // #[inline(never)]
-fn num_simd(mut value: u128, new_line: u32) -> u32 {
+fn num_simd(value: u128, new_line: u32) -> u32 {
     unsafe {
         let mask = simd::Mask::from_bitmask((1u64 << new_line) - 1);
         let value = Simd::load_select_or_default(&value.to_be_bytes(), mask);
@@ -122,53 +122,31 @@ fn num_simd(mut value: u128, new_line: u32) -> u32 {
             }
             _ => 0,
         }
-
-        // let number_mask = dot_mask.not().bitand(mask);
-        // let value = simd_sub(value, Simd::splat('0' as u8));
-
-        // return hashcode;
     }
-    // for _ in 0..new_line {
-    //     let c = (value & 0xFF) as u8;
-    //     value >>= 8;
-    //
-    //     if c == 0x0e {
-    //         result |= (current_byte as u32) << shift_size;
-    //         shift_size -= 8;
-    //         current_byte = 0;
-    //     } else {
-    //         current_byte = current_byte.wrapping_mul(10).wrapping_add(c);
-    //     }
-    // }
-    //
-    // result | (current_byte as u32)
 }
 
-// #[inline(never)]
 fn read_wide(bytes: &[u8]) -> u128 {
     if std::intrinsics::likely(bytes.len() >= 16) {
-        u128::from_le_bytes(bytes[..16].try_into().unwrap())
+        u128::from_ne_bytes(bytes[..16].try_into().unwrap())
     } else {
-        let mut wide = 0u128;
-        for &b in bytes.iter().take(16) {
-            wide = (wide << 8) | (b as u128);
+        #[cfg(target_endian = "big")]
+        {
+            let mut wide = 0u128;
+            let mut offset = 128 - 8;
+            for &b in bytes.iter().take(16) {
+                wide |= (b as u128) << offset;
+                offset -= 8;
+            }
+            wide
         }
-        wide
-    }
-}
-
-// #[inline(never)]
-fn read_wide_be(bytes: &[u8]) -> u128 {
-    if std::intrinsics::likely(bytes.len() >= 16) {
-        u128::from_be_bytes(bytes[..16].try_into().unwrap())
-    } else {
-        let mut wide = 0u128;
-        let mut offset = 128 - 8;
-        for &b in bytes.iter().take(16) {
-            wide |= (b as u128) << offset;
-            offset -= 8;
+        #[cfg(not(target_endian = "big"))]
+        {
+            let mut wide = 0u128;
+            for &b in bytes.iter().take(16) {
+                wide = (wide << 8) | (b as u128);
+            }
+            wide
         }
-        wide
     }
 }
 
@@ -178,7 +156,10 @@ fn newline_location(word: u128) -> u32 {
     let code = (reversed.wrapping_sub(0x01010101010101010101010101010101))
         & (!reversed & 0x80808080808080808080808080808080);
 
-    code.trailing_zeros() >> 3
+    let location = code.trailing_zeros() >> 3;
+    #[cfg(target_endian = "big")]
+    let location = 15 - location;
+    location
 }
 
 // #[inline(never)]
@@ -199,8 +180,8 @@ fn worker(
 
         // Adjusting start
         if std::intrinsics::likely(id > 0) {
-            let value = read_wide_be(current_mem);
-            current_mem = &current_mem[((15 - newline_location(value)) + 1) as usize..];
+            let value = read_wide(current_mem);
+            current_mem = &current_mem[(newline_location(value) + 1) as usize..];
         }
 
         parse_loop(bitset, current_mem, end);
@@ -210,10 +191,10 @@ fn worker(
 // #[inline(never)]
 fn parse_loop(bitset: &MaxBitSet, mut current_mem: &[u8], end: *const u8) {
     while current_mem.as_ptr() < end {
-        let value = read_wide_be(current_mem);
-        let next_new = 15 - newline_location(value);
+        let value = read_wide(current_mem);
+        let next_new = newline_location(value);
         bitset.set(num_simd(value, next_new));
-        current_mem = &current_mem[((next_new + 1)as usize)..];
+        current_mem = &current_mem[((next_new + 1) as usize)..];
     }
 }
 
@@ -262,14 +243,14 @@ fn thread(
     file_size: usize,
 ) -> impl FnOnce() {
     move || {
-        thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
+        // thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
         worker(map, chunk_id, bitset, file_size);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{newline_location, num, num_simd, read_wide, read_wide_be};
+    use crate::{newline_location, num, num_simd, read_wide};
     use rand::Rng;
 
     // #[test]
@@ -421,14 +402,14 @@ mod tests {
 
     #[test]
     fn location_test_8() {
-        let location = newline_location(u128::from_le_bytes(*b"163.162.45.8521."));
+        let location = newline_location(u128::from_ne_bytes(*b"163.162.45.8521."));
         assert_eq!(location, 16);
     }
 
     #[test]
     fn parse_test_1() {
         let data = *b"163.162.45.85\n1.";
-        let location = newline_location(u128::from_le_bytes(data));
+        let location = newline_location(u128::from_ne_bytes(data));
         let number = num(read_wide(&data), location);
         let number_real = ip_to_index(&data[..(location as usize)]).unwrap();
         assert_eq!(number, number_real);
@@ -437,7 +418,7 @@ mod tests {
     #[test]
     fn parse_test_2() {
         let data = *b"1.1.1.1\n2.2.2.2\n";
-        let location = newline_location(u128::from_le_bytes(data));
+        let location = newline_location(u128::from_ne_bytes(data));
         let number = num(read_wide(&data), location);
         assert_eq!(number, 0x01010101u32);
     }
@@ -445,7 +426,7 @@ mod tests {
     #[test]
     fn parse_test_3() {
         let data = *b"1.2.3.4\n2.2.2.2\n";
-        let location = newline_location(u128::from_le_bytes(data));
+        let location = newline_location(u128::from_ne_bytes(data));
         let number = num(read_wide(&data), location);
         assert_eq!(number, 0x01020304u32);
     }
@@ -468,7 +449,7 @@ mod tests {
     //         let ip2 = ip_str();
     //         let data = format!("{ip1}\n{ip2}\n");
     //         let data_bytes = data.as_bytes()[0..16].try_into().unwrap();
-    //         let location = newline_location(u128::from_le_bytes(data_bytes));
+    //         let location = newline_location(u128::from_ne_bytes(data_bytes));
     //         let pattern = ip1.replace(['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], "x");
     //         let hash = num2(read_wide_be(&data_bytes), location);
     //         if !patter_to_hash.contains_key(&pattern) {
@@ -500,8 +481,8 @@ mod tests {
             let ip2 = ip_str();
             let data = format!("{ip1}\n{ip2}\n");
             let data_bytes = data.as_bytes()[0..16].try_into().unwrap();
-            let location = newline_location(u128::from_le_bytes(data_bytes));
-            let parsed = num_simd(read_wide_be(&data_bytes), location);
+            let location = newline_location(u128::from_ne_bytes(data_bytes));
+            let parsed = num_simd(read_wide(&data_bytes), location);
             let parsed_correct = ip_to_index_str_rev(&ip1).unwrap();
             assert_eq!(format!("{parsed:#x}"), format!("{parsed_correct:#x}"));
         }
@@ -524,8 +505,8 @@ mod tests {
             let ip2 = ip_str();
             let data = format!("{ip1}\n{ip2}\n");
             let data_bytes = data.as_bytes()[0..16].try_into().unwrap();
-            let location = newline_location(u128::from_le_bytes(data_bytes));
-            let parsed = num_simd(read_wide_be(&data_bytes), location);
+            let location = newline_location(u128::from_ne_bytes(data_bytes));
+            let parsed = num_simd(read_wide(&data_bytes), location);
             let parsed_correct = ip_to_index_str_rev(&ip1).unwrap();
             assert_eq!(format!("{parsed:#x}"), format!("{parsed_correct:#x}"));
         }
@@ -548,8 +529,8 @@ mod tests {
             let ip2 = ip_str();
             let data = format!("{ip1}\n{ip2}\n");
             let data_bytes = data.as_bytes()[0..16].try_into().unwrap();
-            let location = newline_location(u128::from_le_bytes(data_bytes));
-            let parsed = num_simd(read_wide_be(&data_bytes), location);
+            let location = newline_location(u128::from_ne_bytes(data_bytes));
+            let parsed = num_simd(read_wide(&data_bytes), location);
             let parsed_correct = ip_to_index_str_rev(&ip1).unwrap();
             assert_eq!(format!("{parsed:#x}"), format!("{parsed_correct:#x}"));
         }
@@ -559,9 +540,9 @@ mod tests {
     fn hash_test_2() {
         let data = String::from("22.70.70.13\n7.59.171.119");
         let data_bytes = data.as_bytes()[0..16].try_into().unwrap();
-        let location = newline_location(u128::from_le_bytes(data_bytes));
+        let location = newline_location(u128::from_ne_bytes(data_bytes));
         println!("{location}");
-        let hash = num_simd(read_wide_be(&data_bytes), location);
+        let hash = num_simd(read_wide(&data_bytes), location);
     }
 
     #[test]
@@ -581,7 +562,7 @@ mod tests {
             let ip2 = ip_str();
             let data = format!("{ip1}\n{ip2}\n");
             let data_bytes = data.as_bytes()[0..16].try_into().unwrap();
-            let location = newline_location(u128::from_le_bytes(data_bytes));
+            let location = newline_location(u128::from_ne_bytes(data_bytes));
             assert_eq!(
                 ip1.len(),
                 location as usize,

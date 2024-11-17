@@ -1,4 +1,3 @@
-const MAX_HASH: u32 = 1228;
 pub static PATTERNS_ID: [u8; 1229] = [
     /* hash: 00000000 */ 81, /* hash: 00000001 */ 81, /* hash: 00000002 */ 81,
     /* hash: 00000003 */ 81, /* hash: 00000004 */ 81, /* hash: 00000005 */ 81,

@@ -9,6 +9,6 @@ rustflags = [
     "-Cllvm-args=-pgo-warn-missing-function",
 ]
 
-[unstable]
-build-std = ["std", "panic_abort"]
-build-std-features = ["panic_immediate_abort"]
+#[unstable]
+#build-std = ["std", "panic_abort"]
+#build-std-features = ["panic_immediate_abort"]
