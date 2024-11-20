@@ -8,7 +8,6 @@ num_cpus = "1.16.0"
 memmap2 = "0.9.5"
 thread-priority = "1.2.0"
 wide = "0.7.28"
-#packed_simd = "0.3.9"
 
 [dev-dependencies]
 rand = "0.8.5"
