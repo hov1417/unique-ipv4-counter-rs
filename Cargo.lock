@@ -184,6 +184,7 @@ dependencies = [
  "memmap2",
  "num_cpus",
  "rand",
+ "safe_arch",
  "thread-priority",
  "wide",
 ]
