@@ -157,6 +157,9 @@ fn count_ips(file: &File) -> u64 {
     bitset.count()
 }
 
+/// this is a modified implementation of this V7 algorithm from
+/// http://0x80.pl/notesen/2023-04-09-faster-parse-ipv4.html
+/// with removed validations and some simplifications
 fn num_simd(value: Simd<u8, 16>, new_line: u32) -> u32 {
     let mask = load_mask(new_line);
     let value = mask.select(value, Simd::splat(0));
