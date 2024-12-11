@@ -9,7 +9,6 @@ edition = "2021"
 num_cpus = "1.16.0"
 memmap2 = "0.9.5"
 thread-priority = { version = "1.2.0" , optional = true}
-wide = "0.7.28"
 safe_arch = "0.7.2"
 
 [dev-dependencies]
