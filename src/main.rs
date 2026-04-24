@@ -1,19 +1,18 @@
 #![allow(internal_features)]
 #![feature(core_intrinsics)]
 #![feature(portable_simd)]
-#![feature(integer_sign_cast)]
-#![feature(file_lock)]
 
 mod shuffle_pattern;
 
 use crate::shuffle_pattern::{PATTERNS, PATTERNS_ID};
 use std::fs::File;
+use std::io;
 use std::mem::transmute;
 use std::simd::cmp::SimdPartialEq;
+use std::simd::Select;
 use std::simd::{Mask, Simd};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::thread;
-use std::io;
 
 /// A set to keep track of unique IPs using a bitmask.
 struct MaxBitSet {
@@ -146,7 +145,8 @@ fn count_ips(file: &File) -> u64 {
     for _ in 0..num_threads {
         handles.push(thread::spawn(move || {
             #[cfg(feature = "max_thread_priority")]
-            thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max).unwrap();
+            thread_priority::set_current_thread_priority(thread_priority::ThreadPriority::Max)
+                .unwrap();
             worker(map, chunk_id, bitset);
         }));
     }
@@ -178,8 +178,12 @@ fn num_simd(value: Simd<u8, 16>, new_line: u32) -> u32 {
     let weights = safe_arch::set_reversed_i8_m128i(
         10, 1, 10, 1, 10, 1, 10, 1, 100, 0, 100, 0, 100, 0, 100, 0,
     );
-    let units_and_tenths_combined = safe_arch::mul_u8i8_add_horizontal_saturating_m128i(grouped_units, weights);
-    let shifted = safe_arch::combined_byte_shr_imm_m128i::<8>(units_and_tenths_combined, units_and_tenths_combined);
+    let units_and_tenths_combined =
+        safe_arch::mul_u8i8_add_horizontal_saturating_m128i(grouped_units, weights);
+    let shifted = safe_arch::combined_byte_shr_imm_m128i::<8>(
+        units_and_tenths_combined,
+        units_and_tenths_combined,
+    );
     let combined = safe_arch::add_i16_m128i(shifted, units_and_tenths_combined);
     let packed = safe_arch::pack_i16_to_u8_m128i(combined, combined);
     safe_arch::get_i32_from_m128i_s(packed).cast_unsigned()
@@ -198,19 +202,19 @@ fn calculate_hash(new_line: u32, value: Simd<u8, 16>) -> u32 {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
     use crate::{newline_location, num_simd, read_simd};
     use rand::Rng;
+    use std::fs;
     use std::simd::Simd;
 
     /// This is not a test per se
-    /// just a "script" to generate test files to be run on. 
+    /// just a "script" to generate test files to be run on.
     #[test]
     fn generate_test_file() {
         use rand::Rng;
         use std::fs::File;
-        use std::io::{self, Write};
         use std::io::BufWriter;
+        use std::io::{self, Write};
 
         /// Generates `n` random IP addresses and writes them to the specified file.
         fn generate_ips_and_write_to_file(filename: &str, n: usize) -> io::Result<()> {

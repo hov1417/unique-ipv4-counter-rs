@@ -1,5 +1,3 @@
-#![feature(portable_simd)]
-
 use std::ffi::OsString;
 use std::fs::File;
 use std::io;
@@ -9,7 +7,6 @@ fn calculate_hash(lens: [u8; 4]) -> u32 {
     let mut dot_mask = 0u128;
     let mut offset = 0u32;
     for len in lens {
-        // TODO: rev ?
         offset += len as u32 + 1;
         dot_mask |= 1 << (offset - 1);
     }
