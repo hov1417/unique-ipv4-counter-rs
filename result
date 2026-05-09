@@ -4,3 +4,9 @@ Benchmark 1: ./target/release/unique-ipv4-counter-rs ./target/ip_addresses
   Time (mean ± σ):     30.339 s ±  0.477 s    [User: 598.840 s, System: 124.183 s]
   Range (min … max):   29.559 s … 30.865 s    10 runs
 
+with
+hyperfine "./target/release/unique-ipv4-counter-rs ./target/ip_addresses" -r 10
+Benchmark 1: ./target/release/unique-ipv4-counter-rs ./target/ip_addresses
+  Time (mean ± σ):     30.550 s ±  0.635 s    [User: 597.117 s, System: 133.616 s]
+  Range (min … max):   29.544 s … 31.267 s    10 runs
+

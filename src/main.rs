@@ -35,7 +35,7 @@ impl MaxBitSet {
                 .offset(bit_index.wrapping_shr(6) as isize)
         };
         let mask = 1u64.wrapping_shl(bit_index);
-        AtomicU64::fetch_or(word, mask, Ordering::SeqCst);
+        AtomicU64::fetch_or(word, mask, Ordering::Relaxed);
     }
 
     /// Returns the number of unique bits set.
@@ -136,7 +136,7 @@ fn count_ips(file: &File) -> u64 {
     let bitset = MaxBitSet::new();
 
     // leaking these items to make it easy to work with threads
-    // Safety: all this items live till the end of the program
+    // Safety: all these items live till the end of the program
     let map: &'static [u8] = unsafe { transmute::<&[u8], &'static [u8]>(mmap.as_ref()) };
     let chunk_id: &'static AtomicUsize = Box::leak(Box::new(chunk_id));
     let bitset: &'static MaxBitSet = Box::leak(Box::new(bitset));
