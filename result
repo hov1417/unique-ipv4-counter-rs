@@ -1,3 +1,6 @@
-Benchmark 1: sudo target/release/unique-ipv4-counter-rs target/ips-100000000.txt
-  Time (mean ± σ):      1.017 s ±  0.027 s    [User: 0.003 s, System: 0.004 s]
-  Range (min … max):    0.981 s …  1.103 s    100 runs
+without pgo
+hyperfine "./target/release/unique-ipv4-counter-rs ./target/ip_addresses" -r 10
+Benchmark 1: ./target/release/unique-ipv4-counter-rs ./target/ip_addresses
+  Time (mean ± σ):     30.339 s ±  0.477 s    [User: 598.840 s, System: 124.183 s]
+  Range (min … max):   29.559 s … 30.865 s    10 runs
+

@@ -5,6 +5,7 @@
 mod shuffle_pattern;
 
 use crate::shuffle_pattern::{PATTERNS, PATTERNS_ID};
+use std::arch::x86_64::__m128i;
 use std::fs::File;
 use std::io;
 use std::mem::transmute;
@@ -170,7 +171,7 @@ fn num_simd(value: Simd<u8, 16>, new_line: u32) -> u32 {
 
     let pattern = safe_arch::load_unaligned_m128i(pattern);
 
-    let input = safe_arch::m128i::from(value.to_array());
+    let input = safe_arch::m128i(__m128i::from(value));
     let ascii0 = safe_arch::set_splat_i8_m128i('0' as i8);
 
     let grouped_units_as_chars = safe_arch::shuffle_av_i8z_all_m128i(input, pattern);
@@ -203,7 +204,7 @@ fn calculate_hash(new_line: u32, value: Simd<u8, 16>) -> u32 {
 #[cfg(test)]
 mod tests {
     use crate::{newline_location, num_simd, read_simd};
-    use rand::Rng;
+    use rand::RngExt;
     use std::fs;
     use std::simd::Simd;
 
@@ -211,7 +212,6 @@ mod tests {
     /// just a "script" to generate test files to be run on.
     #[test]
     fn generate_test_file() {
-        use rand::Rng;
         use std::fs::File;
         use std::io::BufWriter;
         use std::io::{self, Write};
@@ -223,16 +223,16 @@ mod tests {
                 panic!("rerun this test with release mod, otherwise it will take too much time");
             }
             let mut file = BufWriter::new(File::create(filename)?);
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
 
             for _ in 0..n {
                 // Generate a random IP address by creating four random octets.
                 let ip = format!(
                     "{}.{}.{}.{}",
-                    rng.gen::<u8>(),
-                    rng.gen::<u8>(),
-                    rng.gen::<u8>(),
-                    rng.gen::<u8>()
+                    rng.random::<u8>(),
+                    rng.random::<u8>(),
+                    rng.random::<u8>(),
+                    rng.random::<u8>()
                 );
 
                 writeln!(file, "{}", ip)?;
@@ -241,7 +241,7 @@ mod tests {
             Ok(())
         }
 
-        let sizes = [100, 1000, 1000000, 100000000, 1000000000];
+        let sizes = [10, 100, 1000, 10000, 1000000, 100000000, 1000000000];
         for size in sizes {
             let filename = format!("target/ips-{size}.txt");
             if !fs::metadata(&filename).is_ok() {
@@ -337,14 +337,14 @@ mod tests {
 
     #[test]
     fn simd_x_x_x_x_test() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut ip_str = move || {
             format!(
                 "{}.{}.{}.{}",
-                rng.gen_range(0..10),
-                rng.gen_range(0..10),
-                rng.gen_range(0..10),
-                rng.gen_range(0..10),
+                rng.random_range(0..10),
+                rng.random_range(0..10),
+                rng.random_range(0..10),
+                rng.random_range(0..10),
             )
         };
         for _ in 0..1000 {
@@ -361,14 +361,14 @@ mod tests {
 
     #[test]
     fn simd_double_digit_test() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut ip_str = move || {
             format!(
                 "{}.{}.{}.{}",
-                rng.gen_range(0..100),
-                rng.gen_range(0..100),
-                rng.gen_range(0..100),
-                rng.gen_range(0..100),
+                rng.random_range(0..100),
+                rng.random_range(0..100),
+                rng.random_range(0..100),
+                rng.random_range(0..100),
             )
         };
         for _ in 0..1000 {
@@ -385,17 +385,17 @@ mod tests {
 
     #[test]
     fn simd_all_test() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut ip_str = move || {
             format!(
                 "{}.{}.{}.{}",
-                rng.gen::<u8>(),
-                rng.gen::<u8>(),
-                rng.gen::<u8>(),
-                rng.gen::<u8>(),
+                rng.random::<u8>(),
+                rng.random::<u8>(),
+                rng.random::<u8>(),
+                rng.random::<u8>(),
             )
         };
-        for _ in 0..1000 {
+        for _ in 0..1000000 {
             let ip1 = ip_str();
             let ip2 = ip_str();
             let data = format!("{ip1}\n{ip2}\n");
@@ -413,14 +413,14 @@ mod tests {
 
     #[test]
     fn parse_fuzzy_test() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let mut ip_str = move || {
             format!(
                 "{}.{}.{}.{}",
-                rng.gen::<u8>(),
-                rng.gen::<u8>(),
-                rng.gen::<u8>(),
-                rng.gen::<u8>()
+                rng.random::<u8>(),
+                rng.random::<u8>(),
+                rng.random::<u8>(),
+                rng.random::<u8>()
             )
         };
         for _ in 0..100000 {
